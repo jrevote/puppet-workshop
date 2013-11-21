@@ -35,10 +35,6 @@
 #
 # Copyright 2013 Your name here, unless otherwise noted.
 #
-#class workshop($parent_path='/mnt/NGS_workshop', $data_dir='data', 
-#               $working_dir='working_dir', $trainee_user='ngstrainee',
-#               $trainee_user='ngstrainee', $trainee_uid=1001, 
-#               $swift_url ='') {
 class workshop {
 
   $parent_path = hiera('workshop::parent_path')
@@ -58,12 +54,13 @@ class workshop {
   }
 
   # Helper resource for the directories
-  define workshop_dir() {
+  define workshop_dir {
     file { "${title}":
-      ensure => directory,
-      mode   => '0755',
-      owner  => $workshop::trainee_user,
-      group  => $workshop::trainee_user,
+      ensure  => directory,
+      recurse => true,
+      mode    => '0755',
+      owner   => $workshop::trainee_user,
+      group   => $workshop::trainee_user,
     }
   }
 
