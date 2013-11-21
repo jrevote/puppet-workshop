@@ -35,69 +35,79 @@
 #
 # Copyright 2013 Your name here, unless otherwise noted.
 #
-class workshop($parent_dir='/mnt/NGS_workshop', $data_dir='data', 
-               $working_dir='working_dir', $trainee_user='ngstrainee') {
+#class workshop($parent_path='/mnt/NGS_workshop', $data_dir='data', 
+#               $working_dir='working_dir', $trainee_user='ngstrainee',
+#               $trainee_user='ngstrainee', $trainee_uid=1001, 
+#               $swift_url ='') {
+class workshop {
 
-  # NGS Trainee User
-  $trainee_uid = 1001
+  $parent_path = hiera('workshop::parent_path')
+  $data_dir = hiera('workshop::data_dir')
+  $working_dir = hiera('workshop::working_dir')
+  $trainee_user = hiera('workshop::trainee_user')
+  $trainee_uid = hiera('workshop::trainee_uid')
+  $swift_url = hiera('workshop::swift_url')
 
+  $data_path = "${parent_path}/${data_dir}"
+  $working_path = "${parent_path}/${working_dir}"
+
+  # Defaults
   File {
     owner => $trainee_user,
     group => $trainee_user,
   }
 
-  group { $trainee_user:,
+  # Helper resource for the directories
+  define workshop_dir() {
+    file { "${title}":
+      ensure => directory,
+      mode   => '0755',
+      owner  => $workshop::trainee_user,
+      group  => $workshop::trainee_user,
+    }
+  }
+
+  # Helper resource for symbolic links
+  define workshop_link($source) {
+    file { "${title}":
+      ensure  => link,
+      target  => $source,
+      require => Workshop_dir[$source],
+    }
+  }
+
+  # Trainee group
+  group { $trainee_user:
     ensure => present,
   }
 
-  file { "/home/${trainee_user}":
-    ensure => directory,
-    mode   => '0755',
+  # Trainee user's home directory
+  workshop_dir { "/home/${trainee_user}": }
+
+  # Trainee user's desktop directory
+  workshop_dir { "/home/${trainee_user}/Desktop":
+    require => Workshop_dir["/home/${trainee_user}"],
   }
 
-  file { "/home/${trainee_user}/Desktop":
-    ensure  => directory,
-    mode    => '0755',
-    require => File["/home/${trainee_user}"],
-  }
-
+  # Trainee user
   user { $trainee_user:
     ensure  => present,
     uid     => $trainee_uid,
     gid     => $trainee_user,
     shell   => '/bin/bash',
     home    => "/home/${trainee_user}",
-    require => [Group[$trainee_user], File["/home/${trainee_user}"]],
+    require => Group[$trainee_user],
   }
 
-  # Parent Directory
-  file { $parent_dir:
-    ensure  => directory,
-    mode    => '0755',
-    require => User[$trainee_user], 
-  }
-
-  # Data Directory
-  file { "${parent_dir}/${data_dir}":
-    ensure  => directory,
-    mode    => '0755',
-    require => File[$parent_dir],
-  }
-
-  # Work Directory
-  file { "${parent_dir}/${working_dir}":
-    ensure  => directory,
-    mode    => '0755',
-    require => File[$parent_dir],
-  }
-
+  # Helper resource for downloading a remote file
   define remote_file($remote_location, $mode=0644, $owner, $group) {
     exec { "get_${title}":
-      command => "/usr/bin/wget -q ${remote_location} -O ${workshop::parent_dir}/${workshop::data_dir}/${title}",
-      creates => "${workshop::parent_dir}/${workshop::data_dir}/${title}",
+      command => "/usr/bin/wget -q ${remote_location} -O ${workshop::data_path}/${title}",
+      creates => "${workshop::data_path}/${title}",
+      require => Workshop_dir[$workshop::data_path],
     }
    
-    file { "${workshop::parent_dir}/${workshop::data_dir}/${title}":
+    file { "${workshop::data_path}/${title}":
       mode    => $mode,
       owner   => $owner,
       group   => $group,
@@ -105,6 +115,7 @@ class workshop($parent_dir='/mnt/NGS_workshop', $data_dir='data',
     }
   }
 
+  # Helper resource for the workshop files
   define workshop_file($location, $link) {
     remote_file { $title:
       remote_location => "${location}/${title}",
@@ -114,11 +125,27 @@ class workshop($parent_dir='/mnt/NGS_workshop', $data_dir='data',
     }
     
     file { "${link}/${title}":
-      ensure => link,
-      target => "${workshop::parent_dir}/${workshop::data_dir}/${title}",
-      owner  => $workshop::trainee_user,
-      group  => $workshop::trainee_user,
+      ensure  => link,
+      target  => "${workshop::data_path}/${title}",
+      owner   => $workshop::trainee_user,
+      group   => $workshop::trainee_user,
+      require => [Workshop_dir[$link], Remote_file[$title]],
     }
+  }
+
+  # Parent path
+  workshop_dir { $parent_path:
+    require => User[$trainee_user],
+  }
+
+  # Data directory
+  workshop_dir { $data_path:
+    require => Workshop_dir[$parent_path],
+  }
+
+  # Working directory
+  workshop_dir { $working_path:
+    require => Workshop_dir[$parent_path],
   }
 
 }

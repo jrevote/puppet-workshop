@@ -1,42 +1,35 @@
-class workshop::qc inherits workshop {
+class workshop::qc($module='QC', $container='NGSDataQC') inherits workshop {
 
-  $module = 'QC'
-  $swift_url = 'https://swift.rc.nectar.org.au:8888/v1/AUTH_809'
-  $swift_container = 'NGSDataQC'
+  $container_url = "${swift_url}/${container}"
+  $module_path = "${parent_path}/${working_dir}/${module}"
+
+  $trainee_home = "/home/${trainee_user}" 
 
   File {
     owner => $workshop::trainee_user,
     group => $workshop::trainee_user,
   }
 
-  file { "${parent_dir}/${working_dir}/${module}":
-    ensure  => directory,
-    mode    => '0755',
-    require => File["${parent_dir}/${working_dir}"],
+  workshop_dir { $module_path:
+    require => Workshop_dir[$working_path],
   }
 
-  file { "/home/${trainee_user}/${module}":
-    ensure  => link,
-    target  => "${parent_dir}/${working_dir}/${module}",
-    require => File["${parent_dir}/${working_dir}/${module}"],
+  workshop_link { "${trainee_home}/${module}":
+    source => $module_path,
   }
- 
-  file { "/home/${trainee_user}/Desktop/${module}":
-    ensure  => link,
-    target  => "${parent_dir}/${working_dir}/${module}",
-    require => [File["${parent_dir}/${working_dir}/${module}"],
-               File["/home/${trainee_user}/Desktop"]],
-  } 
+
+  workshop_link { "${trainee_home}/Desktop/${module}":
+    source  => $module_path,
+    require => Workshop_dir["${trainee_home}/Desktop"],
+  }
 
   workshop_file { 'bad_example.fastq':
-    location => "${swift_url}/${swift_container}",
-    link     => "${workshop::parent_dir}/${workshop::working_dir}/${module}",   
-    require  => File["${parent_dir}/${working_dir}/${module}"],
+    location => $container_url,
+    link     => $module_path,
   }
 
   workshop_file { 'good_example.fastq':
-    location => "${swift_url}/${swift_container}",
-    link     => "${workshop::parent_dir}/${workshop::working_dir}/${module}",
-    require  => File["${parent_dir}/${working_dir}/${module}"],
+    location => $container_url,
+    link     => $module_path,
   }
 }
